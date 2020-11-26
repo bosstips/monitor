@@ -1,0 +1,121 @@
+zabbix 4.0  
+
+1、yum -y install epel-release
+2、yum search zabbix
+3、yum -y install zabbix40-server zabbix40-agent zabbix40-server-mysql zabbix40-dbfiles-mysql   zabbix40-web.noarch
+4、yum -y install nginx php php-fpm php-mysql mariadb-server
+
+
+5、配置数据库：
+
+#启动数据库
+systemctl start mariadb
+
+#创建zabbix数据库#mysqladmin -uroot password 123456
+# mysql -uroot -p
+password
+mysql> create database zabbix character set utf8 collate utf8_bin;
+mysql> create user zabbix@localhost identified by 'password';
+mysql> grant all privileges on zabbix.* to zabbix@localhost;
+mysql> quit;
+
+#mysql
+
+[root@localhost]# rpm -ql zabbix40-dbfiles-mysql.noarch
+/usr/share/licenses/zabbix40-dbfiles-mysql-4.0.17
+/usr/share/licenses/zabbix40-dbfiles-mysql-4.0.17/COPYING
+/usr/share/zabbix-mysql
+/usr/share/zabbix-mysql/Makefile
+/usr/share/zabbix-mysql/Makefile.am
+/usr/share/zabbix-mysql/Makefile.in
+/usr/share/zabbix-mysql/data.sql
+/usr/share/zabbix-mysql/images.sql
+/usr/share/zabbix-mysql/schema.sql
+
+#导入zabbix数据库数据
+shell>mysql zabbix < /usr/share/zabbix-mysql/schema.sql
+shell>mysql zabbix < /usr/share/zabbix-mysql/images.sql
+shell>mysql zabbix < /usr/share/zabbix-mysql/data.sql
+
+
+6：配置nginx
+[root@localhost ~]# cd /etc/nginx/
+[root@localhost nginx]# cp nginx.conf.default nginx.conf
+cp: overwrite ‘nginx.conf’? y
+[root@localhost nginx]#vi nginx.conf          #修改两处，使其支持php
+
+...
+
+        location / {
+            root   /usr/share/zabbix;
+            index  index.php index.html index.htm;
+        }
+...
+...
+
+        location ~ \.php$ {
+            root           /usr/share/zabbix;
+            fastcgi_pass   127.0.0.1:9000;
+            fastcgi_index  index.php;
+            fastcgi_param  SCRIPT_FILENAME  $document_root$fastcgi_script_name;
+            include        fastcgi_params;
+        }
+
+
+systemctl start nginx
+
+7、配置 php
+shell>vi /etc/php.ini
+...
+date.timezone = Asia/Shanghai
+...
+post_max_size = 16M
+max_execution_time = 300
+max_input_time = 300
+
+
+
+shell>vi /etc/php-fpm.d/www.conf
+...
+user = nginx
+group = nginx
+...
+
+shell>chmod 777 -R /var/lib/php         #加权，要不然web界面点next step没反应
+shell>chmod 777 /var/lib/nginx
+systemctl start php-fpm
+
+
+
+8、配置zabbix-server
+shell>chmod 777 -R /etc/zabbix/web
+shell>vi /etc/zabbix_server.conf
+...
+DBPassword=passwd
+...
+
+
+systemctl start zabbix-server
+
+
+
+9、访问web
+
+http://10.211.55.66/setup.php
+Admin/zabbix
+
+
+10、启动agent
+ systemctl start zabbix-agent
+
+
+
+11、开机自启动
+systemctl enable nginx php-fpm mariadb zabbix-server zabbix-agent
+
+
+
+
+
+
+

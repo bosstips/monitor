@@ -1,0 +1,371 @@
+
+mysql extended-status
+
+1、
+
+Aborted_clients 由于客户没有正确关闭连接已经死掉，已经放弃的连接数量。（做监控）
+
+    表示客户端没有正确的关闭连接，而被终止的连接数，引起的原因
+    1.客户端程序退出之前未调用mysql_close()来关闭mysql连接
+    2.客户端的休眠时间超过了mysql系统变量wait_timeout和interactive_timeout的值，导致连接被mysql进程终止
+    3.客户端程序在数据传输过程中突然结束
+2、
+
+Aborted_connects 尝试已经失败的MySQL服务器的连接的次数。（做监控）
+
+
+
+    表示尝试连接到mysql服务器的失败次数，可以结合host_cache来分析问题，引起的原因：
+    1.密码错误  
+    2.没权限访问，但是尝试去访问
+    3.连接超时
+    4.连接信息不正确
+如果碰到连接超时等信息一定要分析一下是什么原因引起的
+
+在MySQL服务器使用tcpdump抓包
+
+[root@lichao ~]# tcpdump -i eth0  port 3306  -s 1500 -w tcpdump.log
+
+然后在另外一台MySQL服务器，使用不存在的账号或错误的密码访问MySQL数据库
+
+# mysql -h xx.xx.xx.xx -u xxx  -pxxxx
+
+ERROR 1045 (28000): Access denied for user 'xxx'@'xx.xx.xx.xxx' (using password: YES)
+
+# mysql -h xx.xx.xx.xx -u xxxx -pxxx
+
+ERROR 1045 (28000): Access denied for user 'test'@'xx.xx.xx.xx' (using password: YES)
+
+[root@lichao~]#
+
+ 
+
+执行完命令后，你可以使用CTRL + C结束抓包分析，然后查看分析。如下截图所示：
+
+ 
+
+[root@lichao ~]# tcpdump -i eth0  port 3306  -s 1500 -w tcpdump.log
+
+tcpdump: listening on eth0, link-type EN10MB (Ethernet), capture size 1500 bytes
+
+28 packets captured
+
+28 packets received by filter
+
+0 packets dropped by kernel
+
+[root@lichao ~]# strings tcpdump.log
+
+3、
+
+Binlog_cache_disk_use表示因为我们binlog_cache_size设计的内存不足导致缓存二进制日志用到了临时文件的次数（做监控）
+
+4、
+
+
+Binlog_cache_use  表示 用binlog_cache_size缓存的次数
+
+
+当对应的Binlog_cache_disk_use 值比较大的时候 我们可以考虑适当的调高 binlog_cache_size 对应的值
+
+没有什么大事务，dml也不是很频繁的情况下可以设置小一点，如果事务大而且多，dml操作也频繁，则可以适当的调大一点。
+
+
+前者建议是1048576  --1M
+
+
+后者建议是： 2097152 -- 4194304  即 2--4M
+
+查看方式：show global status like 'bin%';
+
+
+注意：
+
+（1）max_binlog_cache_size 表示的是binlog 能够使用的最大cache 内存大小
+
+
+当我们执行多语句事务的时候 所有session的使用的内存超过max_binlog_cache_size的值时
+
+
+就会报错：“Multi-statement transaction required more than 'max_binlog_cache_size' bytes ofstorage”
+
+
+（2）设置太大的话，会比较消耗内存资源;设置太小又会使用到临时文件即disk
+
+调整方式（两种办法）：
+
+（1）配置文件设置my.cnf
+
+
+binlog_cache_size = 1M
+
+
+（2）set global binlog_cache_size = 1048576
+
+解释：
+
+show status like '%binlog%';
+
+stmt就是statement的意思
+
+Binlog_cache_disk_use　　（事务类）二进志日志缓存的已经存在硬盘的条数 
+
+Binlog_cache_use　　　　（事务类）二进制日志已缓存的条数（内存中）    注意，这个不是容量，而是事务个数。每次有一条事务提交，都会有一次增加
+
+Binlog_stmt_cache_disk_use  （非事务类）二进志日志缓存的已经存在硬盘的条数  
+
+Binlog_stmt_cache_use  （非事务类）二进制日志已缓存的条数（内存中） 非事务型的语句，都存在这儿，比如MYISAM引擎的表，插入记录就存在这儿
+
+参数衍生：
+
+binlog_cache_use和binlog_cache_disk_use两者结合可以用来调整binlog_cache_size的大小
+binglog_stmt_cache_use和binlog_stmt_cache_disk_use两者结合可以有来调整 binlog_stmt_cache_size的大小
+
+5、
+
+Bytes_received/Bytes_sent（做监控）
+
+看 mysql总的吞吐量
+
+Bytes_received
+从所有客户端接收到的字节数。结合bytes sent, 可以作为数据库网卡吞吐量的评测指标,单位字节
+
+Bytes_sent
+发送给所有客户端的字节数。结合bytes received,可以作为数据库网卡吞吐量的评测指标,单位字节
+
+
+
+6、
+
+Com_admin_commands [ Com_xxx ]
+Com_xxx 语句计数变量表示每个xxx 语句执行的次数。每类语句有一个状态变量。例如，Com_delete和Com_insert分别统计DELETE 和INSERT语句执行的次数。
+Com_xxx包括：
+Com_alter_db
+Com_alter_db_upgrade
+Com_alter_event
+Com_alter_function
+Com_alter_procedure
+Com_alter_server
+Com_alter_table
+Com_alter_tablespace
+Com_analyze
+Com_assign_to_keycache
+Com_begin
+Com_binlog
+Com_call_procedure
+Com_change_db
+Com_change_master
+Com_check
+Com_checksum
+Com_commit  MySQL提交的事务数量,可以用来统计TPS(每秒事务数),计算公式：Com_commit/S+Com_rollback/S（做监控）
+
+Com_create_db
+Com_create_event
+Com_create_function
+Com_create_index
+Com_create_procedure-------创建存储过程个数（监控）
+Com_create_server
+Com_create_table--------创建数据表个数（监控）
+Com_create_trigger
+Com_create_udf
+Com_create_user
+Com_create_view
+Com_dealloc_sql
+Com_delete  MySQL删除的数量,可以用来统计qps,计算公式：questions / uptime 或者基于com_%计算：Com_select/s + Com_insert/s + Com_update/s + Com_delete/s（做监控）
+
+Com_delete_multi
+Com_do
+Com_drop_db    （做监控）
+Com_drop_event
+Com_drop_function
+Com_drop_index
+Com_drop_procedure
+Com_drop_server
+Com_drop_table（做监控）
+Com_drop_trigger
+Com_drop_user
+Com_drop_view
+Com_empty_query
+Com_execute_sql
+Com_flush
+Com_grant（做监控）
+Com_ha_close
+Com_ha_open
+Com_ha_read
+Com_help
+Com_insert MySQL插入的数量,可以用来统计qps,qps计算公式：questions / uptime 或者基于com_%计算：Com_select/s + Com_insert/s + Com_update/s + Com_delete/s （做监控）
+
+Com_insert_select
+Com_install_plugin
+Com_kill
+Com_load
+Com_lock_tables------锁表lock tables，解锁命令unlock tables
+Com_optimize
+Com_preload_keys
+Com_prepare_sql
+Com_purge
+Com_purge_before_date
+Com_release_savepoint
+Com_rename_table
+Com_rename_user
+Com_repair
+Com_replace
+Com_replace_select
+Com_reset
+Com_resignal
+Com_revoke
+Com_revoke_all
+Com_rollback  MySQL回滚的事务数量,可以用来统计TPS(每秒事务数),计算公式：Com_commit/S+Com_rollback/S （监控）
+
+Com_rollback_to_savepoint
+
+Com_savepoint
+Com_select
+
+Com_set_option
+Com_show_authors
+Com_show_binlog_events
+Com_show_binlogs
+Com_show_charsets
+Com_show_collations
+Com_show_contributors
+Com_show_create_db
+Com_show_create_event
+Com_show_create_func
+Com_show_create_proc
+Com_show_create_table
+Com_show_create_trigger
+Com_show_databases----执行show databases次数（监控）
+Com_show_engine_logs
+Com_show_engine_mutex
+Com_show_engine_status
+Com_show_errors
+Com_show_events
+Com_show_fields
+Com_show_function_code
+Com_show_function_status
+Com_show_grants
+Com_show_keys
+Com_show_logs
+Com_show_master_status
+Com_show_new_master
+Com_show_open_tables
+Com_show_plugins
+Com_show_privileges
+Com_show_procedure_code
+Com_show_procedure_status
+Com_show_processlist
+Com_show_profile
+Com_show_profiles
+Com_show_relaylog_events
+Com_show_slave_hosts
+Com_show_slave_status
+Com_show_status
+Com_show_storage_engines
+Com_show_table_status
+Com_show_tables
+Com_show_triggers
+Com_show_variables
+Com_show_warnings
+Com_signal
+Com_slave_start
+Com_slave_stop
+Com_stmt_close
+Com_stmt_execute
+Com_stmt_fetch
+Com_stmt_prepare
+Com_stmt_reprepare
+Com_stmt_reset
+Com_stmt_send_long_data
+Com_truncate  （监控）
+Com_uninstall_plugin
+Com_unlock_tables（监控1）
+Com_update  MySQL更新的数量,可以用来统计qps,qps计算公式：questions / uptime 或者基于com_%计算：Com_select/s + Com_insert/s + Com_update/s + Com_delete/s（监控）
+Com_update_multi
+Com_xa_commit
+Com_xa_end
+Com_xa_prepare
+Com_xa_recover
+Com_xa_rollback
+Com_xa_start
+
+7、
+
+Connections 试图连接MySQL服务器的次数。
+
+8、
+
+Created_tmp_tables 当执行语句时，已经被创造了的隐含临时表的数量。
+
+Created_tmp_disk_tables
+
+关于这两个值是：
+
+        mysql> show global status like 'created_tmp%';
+        +-------------------------+---------+
+        | Variable_name            | Value    |
+        +-------------------------+---------+
+        | Created_tmp_disk_tables | 21197    |
+        | Created_tmp_files        | 58       |
+        | Created_tmp_tables       | 1771587 |
+        +-------------------------+---------+
+每次创建临时表，Created_tmp_tables增加，如果是在磁盘上创建临时表，Created_tmp_disk_tables也增加,Created_tmp_files表示MySQL服务创建的临时文件文件数，比较理想的配置是：
+        Created_tmp_disk_tables / Created_tmp_tables * 100% <= 25%
+比如上面的服务器Created_tmp_disk_tables / Created_tmp_tables * 100% ＝ 1.20%，应该相当好了。我们再看一下MySQL服务器对临时表的配置：
+        mysql> show variables where Variable_name in ('tmp_table_size', 'max_heap_table_size');
+        +---------------------+-----------+
+        | Variable_name        | Value      |
+        +---------------------+-----------+
+        | max_heap_table_size | 268435456 |
+        | tmp_table_size       | 536870912 |
+        +---------------------+-----------+
+只有256MB以下的临时表才能全部放内存，超过的就会用到硬盘临时表。
+
+9、
+
+Delayed_insert_threads 正在使用的延迟插入处理器线程的数量。
+Delayed_writes 用INSERT DELAYED写入的行数。
+Delayed_errors 用INSERT DELAYED写入的发生某些错误(可能重复键值)的行数。
+
+10、
+Flush_commands 执行FLUSH命令的次数 （监控）
+
+11、
+
+Handler_delete 请求从一张表中删除行的次数。（监控）
+Handler_read_first 请求读入表中第一行的次数。
+Handler_read_key 请求数字基于键读行。
+Handler_read_next 请求读入基于一个键的一行的次数。
+Handler_read_rnd 请求读入基于一个固定位置的一行的次数。
+Handler_update 请求更新表中一行的次数。（监控）
+Handler_write 请求向表中插入一行的次数。（监控）
+
+12、
+
+Key_blocks_used 用于关键字缓存的块的数量。
+Key_read_requests 请求从缓存读入一个键值的次数。
+Key_reads 从磁盘物理读入一个键值的次数。（监控）
+Key_write_requests 请求将一个关键字块写入缓存次数。
+Key_writes 将一个键值块物理写入磁盘的次数（监控）
+
+13、
+
+Max_used_connections 同时使用的连接的最大数目。（监控）
+Not_flushed_key_blocks 在键缓存中已经改变但是还没被清空到磁盘上的键块。
+Not_flushed_delayed_rows 在INSERT DELAY队列中等待写入的行的数量。
+
+14、
+
+Open_tables 打开表的数量。（监控）
+Open_files 打开文件的数量。（监控）
+Open_streams 打开流的数量(主要用于日志记载）
+Opened_tables 已经打开的表的数量
+
+15、
+
+Questions 发往服务器的查询的数量。（监控）
+Slow_queries 要花超过long_query_time时间的查询数量。
+Threads_connected 当前打开的连接的数量。（监控）
+Threads_running 不在睡眠的线程数量。（监控）
+Uptime 服务器工作了多少秒。（监控）
+
