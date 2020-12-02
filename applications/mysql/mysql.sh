@@ -66,12 +66,12 @@ case $1 in
         result=`${MYSQL_CONN} extended-status |grep -w "Com_commit"|cut -d"|" -f3` 
                 echo $result 
                 ;; 
-    #接收的流量
+    #发送的流量
     Bytes_sent) 
         result=`${MYSQL_CONN} extended-status |grep -w "Bytes_sent" |cut -d"|" -f3` 
                 echo $result 
                 ;; 
-    #发送的流量
+    #接收的流量
     Bytes_received) 
         result=`${MYSQL_CONN} extended-status |grep -w "Bytes_received" |cut -d"|" -f3` 
                 echo $result 
@@ -84,6 +84,7 @@ case $1 in
         Uptime=`${MYSQL_CONN} status|cut -f2 -d":"|awk '{print $1}'`
         Questions=`${MYSQL_CONN} status | awk '{print $6}'`
         result=`awk 'BEGIN{printf "%.2f\n",'$Questions'/'$Uptime'}'`
+	declare -i result
         echo $result
         ;;
     TPS )
@@ -91,20 +92,24 @@ case $1 in
         rollback=`${MYSQL_CONN} extended-status | awk '/\<Com_rollback\>/{print $4}'`
         commit=`${MYSQL_CONN} extended-status | awk '/\<Com_commit\>/{print $4}'`
         result=`awk 'BEGIN{printf "%.2f\n",'$(($rollback+$commit))'/'$Uptime'}'`
+	declare -i result
         echo $result
         ;;
     TARGET )
         Reads=`${MYSQL_CONN} extended-status|awk '/Innodb_buffer_pool_reads/{print $4}'`
         Requests=`${MYSQL_CONN} extended-status|awk '/nnodb_buffer_pool_read_requests/{print $4}'`
         result=`awk 'BEGIN{printf "%.2f\n",'$Reads'/'$Requests*100'}'`
+	declare -i result
         echo $result
         ;;
     DB_Size )
         result=`mysql -u${MYSQL_USER} -h${MYSQL_HOST} -p${MYSQL_PWD} -P${MYSQL_PORT} -Dinformation_schema -e "select concat(round(sum(data_length/1024/1024),2)) as data from tables" |awk 'NR==2{print $1}'`
+	declare -i result
         echo $result
         ;;
     DB_zabbix_size )
         result=`mysql -u${MYSQL_USER} -h${MYSQL_HOST} -p${MYSQL_PWD} -P${MYSQL_PORT} -Dinformation_schema -e "select concat(round(sum(data_length/1024/1024),2)) as data from tables where table_schema='zabbix'" | awk 'NR==2{print $1}'`
+	declare -i result
         echo $result
         ;;
         *) 
